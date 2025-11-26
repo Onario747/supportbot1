@@ -2,10 +2,34 @@ const { Client } = require("discord.js-selfbot-v13");
 require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
+const { SocksProxyAgent } = require("socks-proxy-agent");
 
-const client = new Client({
+// Proxy configuration - use SOCKS5 proxy to maintain consistent IP
+const PROXY_HOST = process.env.PROXY_HOST || "localhost";
+const PROXY_PORT = process.env.PROXY_PORT || "1080";
+const USE_PROXY = process.env.USE_PROXY === "true";
+
+let clientOptions = {
   checkUpdate: false,
-});
+};
+
+// Add proxy configuration if enabled
+if (USE_PROXY) {
+  const proxyUrl = `socks5://${PROXY_HOST}:${PROXY_PORT}`;
+  const agent = new SocksProxyAgent(proxyUrl);
+
+  clientOptions.proxy = proxyUrl;
+  clientOptions.ws = {
+    agent: agent,
+  };
+
+  console.log(`🎭 Proxy enabled: ${proxyUrl}`);
+  console.log(`   Discord will see the proxy server's IP, not your local IP`);
+} else {
+  console.log(`⚠️  Proxy disabled - using direct connection`);
+}
+
+const client = new Client(clientOptions);
 
 // REPLACE THESE WITH YOUR ACTUAL CHANNEL IDs
 const GENERAL_CHANNEL_ID = "1442214025839771743";

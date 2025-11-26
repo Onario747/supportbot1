@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "proxy": "node proxy-server.js",
+    "dev": "node index.js",
+    "start:both": "concurrently \"npm run proxy\" \"npm run start\""
   },
   "keywords": [],
   "author": "",
@@ -11,10 +15,13 @@
   "description": "",
   "dependencies": {
     "axios": "^1.13.2",
+    "concurrently": "^8.2.2",
     "debug": "^4.4.3",
     "discord.js": "^14.25.1",
     "discord.js-selfbot-v13": "^3.7.1",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^2.0.6",
+    "socks-proxy-agent": "^8.0.2"
   }
 }
