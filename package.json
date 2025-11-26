@@ -21,7 +21,7 @@
     "discord.js-selfbot-v13": "^3.7.1",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "http-proxy-middleware": "^2.0.6",
-    "socks-proxy-agent": "^8.0.2"
+    "http-proxy-middleware": "^2.0.9",
+    "socks-proxy-agent": "^8.0.5"
   }
 }

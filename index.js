@@ -31,9 +31,12 @@ if (USE_PROXY) {
 
 const client = new Client(clientOptions);
 
-// REPLACE THESE WITH YOUR ACTUAL CHANNEL IDs
+// REPLACE THESE WITH YOUR ACTUAL IDs
 const GENERAL_CHANNEL_ID = "1442214025839771743";
 const TICKET_CHANNEL_ID = "1442521865573634088";
+// Set this to your support server ID to only send welcome messages there
+// Leave as null to send welcome messages in ALL servers
+const SUPPORT_SERVER_ID = "1442214024967360754"; // Example: "1442214024967360754"
 
 // Web server for Render (required for free tier)
 const app = express();
@@ -73,11 +76,34 @@ client.on("ready", async () => {
 
 client.on("guildMemberAdd", async (member) => {
   try {
+    // Only process if this is YOUR support server (if SUPPORT_SERVER_ID is set)
+    if (SUPPORT_SERVER_ID && member.guild.id !== SUPPORT_SERVER_ID) {
+      console.log(
+        `Ignoring member join in ${member.guild.name} (not support server)`
+      );
+      return;
+    }
+
+    // Try to fetch the member to get full data
+    try {
+      await member.fetch();
+    } catch (fetchError) {
+      console.log(`Could not fetch full member data: ${fetchError.message}`);
+    }
+
     // Send welcome message to General channel
     try {
-      const generalChannel = await client.channels
-        .fetch(GENERAL_CHANNEL_ID)
-        .catch(() => null);
+      // Find the general channel in THIS guild (not hardcoded)
+      let generalChannel = member.guild.channels.cache.find(
+        (channel) => channel.name === "general" || channel.name === "welcome"
+      );
+
+      // Fallback to hardcoded channel ID if channel not found by name
+      if (!generalChannel) {
+        generalChannel = await client.channels
+          .fetch(GENERAL_CHANNEL_ID)
+          .catch(() => null);
+      }
 
       if (generalChannel) {
         // Try multiple mention formats for better compatibility
@@ -85,7 +111,10 @@ client.on("guildMemberAdd", async (member) => {
           ? `<@${member.user.id}>`
           : `<@${member.id}>`;
         const username =
-          member.user?.tag || member.user?.username || "new member";
+          member.user?.tag ||
+          member.user?.username ||
+          member.displayName ||
+          "new member";
 
         const welcomeMessage = await generalChannel.send(
           `Hello ${mention} :wave:! Welcome to **${member.guild.name}**. If you need assistance, please react with 🎫 below to create a support ticket.`
@@ -93,12 +122,10 @@ client.on("guildMemberAdd", async (member) => {
 
         await welcomeMessage.react("🎫");
         console.log(
-          `Sent welcome message with reaction to ${username} (ID: ${member.id})`
+          `Sent welcome message with reaction to ${username} (ID: ${member.id}) in ${member.guild.name}`
         );
       } else {
-        console.error(
-          `Could not access general channel: ${GENERAL_CHANNEL_ID}`
-        );
+        console.error(`Could not find general channel in ${member.guild.name}`);
       }
     } catch (err) {
       console.error(`Error sending to general channel: ${err.message}`);
