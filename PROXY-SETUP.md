@@ -48,8 +48,10 @@ This installs:
    - **Environment Variables**:
      - `PORT=3000`
      - `SOCKS_PORT=1080`
+     - `PROXY_SERVER_URL=https://discord-proxy-server.onrender.com` (use your actual URL)
 
 4. Deploy and note the URL (e.g., `https://discord-proxy-server.onrender.com`)
+5. **Important**: After deployment, update the `PROXY_SERVER_URL` variable with the actual URL
 
 #### Step 2: Deploy Bot Service
 
@@ -169,11 +171,26 @@ Watch for these messages:
 3. **Single IP**: Discord only sees the proxy server's IP address
 4. **Consistent Identity**: As long as the proxy server doesn't restart, the IP remains stable
 
+## 🔄 Keep-Alive Mechanism
+
+**Both services include automatic keep-alive** to prevent Render from sleeping:
+
+- **Proxy Server**: Pings itself every 14 minutes at `/health`
+- **Bot Server**: Pings itself every 14 minutes at `/`
+
+This prevents the 15-minute inactivity timeout on Render's free tier.
+
+### What This Means:
+
+✅ **Services won't sleep** due to inactivity  
+✅ **IP stays consistent** as long as services run  
+❌ **IP may still change** if Render restarts services for other reasons (deployments, maintenance)
+
 ## ⚠️ Limitations on Render
 
-- **Free tier restarts**: Services restart after 15 minutes of inactivity
-- **IP may change**: On service restart, Render may assign a new IP
-- **Not truly static**: Only consistent while the service is running
+- **Not 100% guaranteed**: Render may still restart services for maintenance or updates
+- **IP may change on restart**: When Render restarts, you might get a new IP
+- **Not truly static**: Only consistent while the service is running continuously
 
 ## 💡 Best Solution
 

@@ -154,22 +154,43 @@ const socksServer = net.createServer((clientSocket) => {
 });
 
 socksServer.listen(SOCKS_PORT, "0.0.0.0", () => {
-  console.log(`🧦 SOCKS5 proxy server running on port ${SOCKS_PORT}`);
+  console.log(` SOCKS5 proxy server running on port ${SOCKS_PORT}`);
   console.log(`   Use this for Discord Gateway WebSocket connections`);
 });
+
+// Keep-alive mechanism - prevents server from sleeping on Render
+const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000; // Ping every 14 minutes
+const PROXY_SERVER_URL =
+  process.env.PROXY_SERVER_URL ||
+  `http://localhost:${process.env.PORT || 3000}`;
+
+function keepAlive() {
+  setInterval(async () => {
+    try {
+      const response = await axios.get(`${PROXY_SERVER_URL}/health`);
+      console.log(` Keep-alive ping successful: ${response.status}`);
+    } catch (error) {
+      console.error(` Keep-alive ping failed:`, error.message);
+    }
+  }, KEEP_ALIVE_INTERVAL);
+}
+
+// Start keep-alive after 5 seconds
+setTimeout(() => {
+  keepAlive();
+  console.log(` Keep-alive mechanism started (pinging every 14 minutes)`);
+}, 5000);
 
 // Start Express server
 const PORT = process.env.PORT || 3000;
 
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Discord Bot Proxy Server running on port ${PORT}`);
-  console.log(`📡 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔍 Check IP: http://localhost:${PORT}/get-ip`);
-  console.log(`🔄 Discord API Proxy: http://localhost:${PORT}/api/*`);
-  console.log(`🧦 SOCKS5 Proxy: localhost:${SOCKS_PORT}`);
-  console.log(
-    `\n⚠️  IMPORTANT: Configure your bot to use these proxy settings`
-  );
+  console.log(` Discord Bot Proxy Server running on port ${PORT}`);
+  console.log(` Health check: http://localhost:${PORT}/health`);
+  console.log(` Check IP: http://localhost:${PORT}/get-ip`);
+  console.log(` Discord API Proxy: http://localhost:${PORT}/api/*`);
+  console.log(` SOCKS5 Proxy: localhost:${SOCKS_PORT}`);
+  console.log(`\n IMPORTANT: Configure your bot to use these proxy settings`);
 });
 
 // Enable WebSocket support
