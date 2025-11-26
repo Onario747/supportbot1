@@ -80,12 +80,21 @@ client.on("guildMemberAdd", async (member) => {
         .catch(() => null);
 
       if (generalChannel) {
+        // Try multiple mention formats for better compatibility
+        const mention = member.user
+          ? `<@${member.user.id}>`
+          : `<@${member.id}>`;
+        const username =
+          member.user?.tag || member.user?.username || "new member";
+
         const welcomeMessage = await generalChannel.send(
-          `Hello ${member} :wave:! Welcome to **${member.guild.name}**. If you need assistance, please react with 🎫 below to create a support ticket.`
+          `Hello ${mention} :wave:! Welcome to **${member.guild.name}**. If you need assistance, please react with 🎫 below to create a support ticket.`
         );
 
         await welcomeMessage.react("🎫");
-        console.log(`Sent welcome message with reaction to ${member.user.tag}`);
+        console.log(
+          `Sent welcome message with reaction to ${username} (ID: ${member.id})`
+        );
       } else {
         console.error(
           `Could not access general channel: ${GENERAL_CHANNEL_ID}`
