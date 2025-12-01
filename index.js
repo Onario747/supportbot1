@@ -395,6 +395,9 @@ client.on("messageCreate", async (message) => {
   // Ignore support auto-reply for specific server
   if (message.guild?.id === "1442214024967360754") return;
 
+  // Ignore messages from the bot itself to prevent loops
+  if (message.author.id === client.user.id) return;
+
   const content = message.content.toLowerCase();
   // Keywords to detect
   const keywords = [
@@ -413,7 +416,7 @@ client.on("messageCreate", async (message) => {
   if (keywords.some((word) => content.includes(word))) {
     try {
       // REPLACE THIS WITH YOUR ACTUAL SERVER LINK
-      const supportLink = "https://discord.gg/rQezfkBh";
+      const supportLink = "https://discord.gg/a9CftSnCTF";
 
       const reply = await message.reply(
         `Hello. I noticed you may require assistance. You can submit a support ticket for professional help in our support server: ${supportLink}`
